@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Online Memory Game</title>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<style>
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #0f172a;
+  color: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+.container {
+  background: #020617;
+  padding: 20px;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 420px;
+}
+h1 { text-align: center; }
+input, button {
+  width: 100%;
+  padding: 10px;
+  margin-top: 8px;
+  border-radius: 8px;
+  border: none;
+}
+button {
+  background: #3b82f6;
+  color: white;
+  font-size: 16px;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-top: 15px;
+}
+.card {
+  aspect-ratio: 1/1;
+  background: #1e293b;
+  border-radius: 10px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 30px;
+  cursor: pointer;
+}
+.card.open {
+  background: #22c55e;
+}
+.leaderboard div {
+  margin: 4px 0;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container" id="login">
+  <h1>Memory Game</h1>
+  <input id="username" placeholder="Username">
+  <input id="roomCode" placeholder="Room Code">
+  <button onclick="joinRoom()">Join Room</button>
+</div>
+
+<div class="container" id="game" style="display:none;">
+  <h1 id="roomTitle"></h1>
+  ⏱ Time: <span id="time">0</span>s
+  <div class="grid" id="grid"></div>
+  <h3>🏆 Leaderboard</h3>
+  <div class="leaderboard" id="leaderboard"></div>
+</div>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyB5DEX0fuSjTud04-mR__GDpiu1-vk9SIY",
+  authDomain: "memory-game-66dad.firebaseapp.com",
+  databaseURL: "https://memory-game-66dad-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "memory-game-66dad",
+  storageBucket: "memory-game-66dad.firebasestorage.app",
+  messagingSenderId: "94001818458",
+  appId: "1:94001818458:web:95184599a49e78d286e163",
+  measurementId: "G-G085JMJZ9D"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+const icons = ['🍎','🍌','🍇','🍒','🍉','🥝','🍍','🥥'];
+
+let user = "";
+let room = "";
+let first = null;
+let lock = false;
+let time = 0;
+
+/* JOIN ROOM */
+function joinRoom() {
+  user = username.value.trim();
+  room = roomCode.value.trim();
+  if (!user || !room) {
+    alert("Enter username and room code");
+    return;
+  }
+
+  login.style.display = "none";
+  game.style.display = "block";
+  roomTitle.innerText = "Room: " + room;
+
+  const ref = db.ref("rooms/" + room);
+
+  ref.once("value", snap => {
+    if (!snap.exists()) {
+      ref.set({
+        cards: shuffle([...icons, ...icons]),
+        time: 0,
+        scores: {}
+      });
+    }
+  });
+
+  ref.on("value", snap => {
+    const data = snap.val();
+    if (!data) return;
+    renderBoard(data.cards);
+    updateLeaderboard(data.scores || {});
+    time = data.time;
+    document.getElementById("time").innerText = time;
+  });
+
+  setInterval(() => {
+    db.ref("rooms/" + room + "/time").set(time + 1);
+  }, 1000);
+}
+
+/* SHUFFLE */
+function shuffle(arr) {
+  return arr.sort(() => Math.random() - 0.5);
+}
+
+/* RENDER BOARD */
+function renderBoard(cards) {
+  grid.innerHTML = "";
+  cards.forEach((icon, i) => {
+    const card = document.createElement("div");
+    card.className = "card";
+    card.innerText = icon;
+    card.onclick = () => flip(card, icon);
+    grid.appendChild(card);
+  });
+}
+
+/* FLIP CARD */
+function flip(card, icon) {
+  if (lock || card.classList.contains("open")) return;
+
+  card.classList.add("open");
+
+  if (!first) {
+    first = { card, icon };
+    return;
+  }
+
+  if (first.icon === icon) {
+    db.ref(`rooms/${room}/scores/${user}`).transaction(v => (v || 0) + 1);
+    first = null;
+  } else {
+    lock = true;
+    setTimeout(() => {
+      card.classList.remove("open");
+      first.card.classList.remove("open");
+      first = null;
+      lock = false;
+    }, 800);
+  }
+}
+
+/* LEADERBOARD */
+function updateLeaderboard(scores) {
+  leaderboard.innerHTML = "";
+  Object.entries(scores)
+    .sort((a,b) => b[1] - a[1])
+    .forEach(([u,s]) => {
+      leaderboard.innerHTML += `<div>${u}: ${s}</div>`;
+    });
+}
+</script>
+
+</body>
+</html>
