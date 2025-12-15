@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Online Memory Game</title>
 
-<!-- Firebase -->
+<!-- Firebase COMPAT (correct for this setup) -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
@@ -69,11 +69,10 @@ button {
 
 <div class="container" id="login">
   <h1>Memory Game</h1>
-<input id="username" placeholder="Username">
-<input id="roomCode" placeholder="Room Code">
-
-<button onclick="createRoom()">Create Room</button>
-<button onclick="joinRoom()">Join Room</button>
+  <input id="username" placeholder="Username">
+  <input id="roomCode" placeholder="Room Code">
+  <button onclick="createRoom()">Create Room</button>
+  <button onclick="joinRoom()">Join Room</button>
 </div>
 
 <div class="container" id="game" style="display:none;">
@@ -85,6 +84,7 @@ button {
 </div>
 
 <script>
+// ✅ YOUR FIREBASE CONFIG (UNCHANGED)
 const firebaseConfig = {
   apiKey: "AIzaSyB5DEX0fuSjTud04-mR__GDpiu1-vk9SIY",
   authDomain: "memory-game-66dad.firebaseapp.com",
@@ -92,24 +92,43 @@ const firebaseConfig = {
   projectId: "memory-game-66dad",
   storageBucket: "memory-game-66dad.firebasestorage.app",
   messagingSenderId: "94001818458",
-  appId: "1:94001818458:web:95184599a49e78d286e163",
-  measurementId: "G-G085JMJZ9D"
+  appId: "1:94001818458:web:95184599a49e78d286e163"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
-
+// ✅ Correct initialization
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
 const icons = ['🍎','🍌','🍇','🍒','🍉','🥝','🍍','🥥'];
-
 let user = "";
 let room = "";
 let first = null;
 let lock = false;
 let time = 0;
+
+/* CREATE ROOM */
+function createRoom() {
+  user = username.value.trim();
+  room = roomCode.value.trim();
+  if (!user || !room) {
+    alert("Enter username and room code");
+    return;
+  }
+
+  const ref = db.ref("rooms/" + room);
+  ref.once("value", snap => {
+    if (snap.exists()) {
+      alert("Room already exists");
+      return;
+    }
+    ref.set({
+      cards: shuffle([...icons, ...icons]),
+      time: 0,
+      scores: {}
+    });
+    startGame(ref);
+  });
+}
 
 /* JOIN ROOM */
 function joinRoom() {
@@ -120,21 +139,20 @@ function joinRoom() {
     return;
   }
 
+  const ref = db.ref("rooms/" + room);
+  ref.once("value", snap => {
+    if (!snap.exists()) {
+      alert("Room does not exist");
+      return;
+    }
+    startGame(ref);
+  });
+}
+
+function startGame(ref) {
   login.style.display = "none";
   game.style.display = "block";
   roomTitle.innerText = "Room: " + room;
-
-  const ref = db.ref("rooms/" + room);
-
-  ref.once("value", snap => {
-    if (!snap.exists()) {
-      ref.set({
-        cards: shuffle([...icons, ...icons]),
-        time: 0,
-        scores: {}
-      });
-    }
-  });
 
   ref.on("value", snap => {
     const data = snap.val();
@@ -150,15 +168,14 @@ function joinRoom() {
   }, 1000);
 }
 
-/* SHUFFLE */
+/* HELPERS */
 function shuffle(arr) {
   return arr.sort(() => Math.random() - 0.5);
 }
 
-/* RENDER BOARD */
 function renderBoard(cards) {
   grid.innerHTML = "";
-  cards.forEach((icon, i) => {
+  cards.forEach(icon => {
     const card = document.createElement("div");
     card.className = "card";
     card.innerText = icon;
@@ -167,10 +184,8 @@ function renderBoard(cards) {
   });
 }
 
-/* FLIP CARD */
 function flip(card, icon) {
   if (lock || card.classList.contains("open")) return;
-
   card.classList.add("open");
 
   if (!first) {
@@ -192,7 +207,6 @@ function flip(card, icon) {
   }
 }
 
-/* LEADERBOARD */
 function updateLeaderboard(scores) {
   leaderboard.innerHTML = "";
   Object.entries(scores)
