@@ -113,6 +113,7 @@ const firebaseConfig = {
   messagingSenderId: "94001818458",
   appId: "1:94001818458:web:95184599a49e78d286e163"
 };
+
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
@@ -124,70 +125,71 @@ let timerStarted=false;
 
 function shuffle(a){ return a.sort(()=>Math.random()-0.5); }
 
+function getInputs() {
+  return {
+    name: document.getElementById("playerName").value.trim(),
+    room: document.getElementById("roomName").value.trim(),
+    pass: document.getElementById("roomPass").value
+  };
+}
+
 function createRoom(){
-  user = playerName.value.trim();
-  roomCode = roomName.value.trim();
-  const pass = roomPass.value;
+  const i = getInputs();
+  if(!i.name || !i.room) return alert("Fill all");
 
-  if(!user || !roomCode){
-    alert("Fill all fields");
-    return;
-  }
-
+  user = i.name;
+  roomCode = i.room;
   isHost = true;
 
   db.ref("rooms/"+roomCode).set({
-    pass,
-    host:user,
-    cards:shuffle([...icons,...icons]),
-    open:[],
-    scores:{},
-    time:120,
-    state:"playing",
-    chat:[]
+    pass: i.pass,
+    host: user,
+    cards: shuffle([...icons,...icons]),
+    open: [],
+    scores: {},
+    time: 120,
+    state: "playing",
+    chat: []
   });
 
   startGame();
 }
 
 function joinRoom(){
-  user = playerName.value.trim();
-  roomCode = roomName.value.trim();
-  const pass = roomPass.value;
+  const i = getInputs();
+  if(!i.name || !i.room) return alert("Fill all");
 
-  if(!user || !roomCode){
-    alert("Fill all fields");
-    return;
-  }
+  user = i.name;
+  roomCode = i.room;
 
   db.ref("rooms/"+roomCode).once("value",s=>{
     if(!s.exists()) return alert("Room not found");
-    if(s.val().pass !== pass) return alert("Wrong password");
+    if(s.val().pass !== i.pass) return alert("Wrong password");
     startGame();
   });
 }
 
 function startGame(){
-  login.classList.add("hidden");
-  game.classList.remove("hidden");
-  roomTitle.innerText = "Room: " + roomCode;
+  document.getElementById("login").classList.add("hidden");
+  document.getElementById("game").classList.remove("hidden");
+  document.getElementById("roomTitle").innerText = "Room: " + roomCode;
 
   db.ref("rooms/"+roomCode).on("value",s=>{
     const d=s.val(); if(!d) return;
     render(d.cards,d.open);
     updateScores(d.scores||{});
-    time.innerText=d.time;
+    document.getElementById("time").innerText=d.time;
 
     if(d.time<=0 && d.state==="playing"){
       db.ref("rooms/"+roomCode+"/state").set("ended");
     }
 
     if(d.state==="ended"){
-      chatSection.classList.remove("hidden");
+      document.getElementById("chatSection").classList.remove("hidden");
       if(isHost){
-        hostControls.classList.remove("hidden");
+        document.getElementById("hostControls").classList.remove("hidden");
       } else {
-        waiting.classList.remove("hidden");
+        document.getElementById("waiting").classList.remove("hidden");
       }
     }
   });
@@ -202,6 +204,7 @@ function startGame(){
 }
 
 function render(cards,open){
+  const grid=document.getElementById("grid");
   grid.innerHTML="";
   cards.forEach((icon,i)=>{
     const c=document.createElement("div");
@@ -228,28 +231,26 @@ function flip(i,icon,open){
     first=null;
   } else {
     lock=true;
-    setTimeout(()=>{
-      lock=false;
-      first=null;
-    },700);
+    setTimeout(()=>{ lock=false; first=null; },700);
   }
 }
 
 function updateScores(s){
-  scores.innerHTML="";
+  const el=document.getElementById("scores");
+  el.innerHTML="";
   Object.entries(s).forEach(([u,v])=>{
-    scores.innerHTML+=`${u}: ${v}<br>`;
+    el.innerHTML+=`${u}: ${v}<br>`;
   });
 }
 
 function restartGame(){
   db.ref("rooms/"+roomCode).update({
-    cards:shuffle([...icons,...icons]),
-    open:[],
-    scores:{},
-    time:120,
-    state:"playing",
-    chat:[]
+    cards: shuffle([...icons,...icons]),
+    open: [],
+    scores: {},
+    time: 120,
+    state: "playing",
+    chat: []
   });
 }
 
@@ -260,8 +261,8 @@ function closeRoom(){
 
 function sendChat(e){
   if(e.key!=="Enter") return;
-  db.ref("rooms/"+roomCode+"/chat").push(user+": "+chatInput.value);
-  chatInput.value="";
+  db.ref("rooms/"+roomCode+"/chat").push(user+": "+e.target.value);
+  e.target.value="";
 }
 </script>
 
