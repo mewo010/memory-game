@@ -4,23 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>1v1 Memory Race</title>
-    
     <link rel="stylesheet" href="style.css">
-
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 </head>
-
 <body>
 
     <div class="container" id="login">
         <h2>⚔️ 1v1 Memory Race</h2>
         <p class="subtitle">First to find 8 pairs wins!</p>
-        
         <input id="playerName" placeholder="Your Nickname" maxlength="10">
         <input id="roomName" placeholder="Room Name">
         <input id="roomPass" placeholder="Room Password" type="password">
-        
         <div class="btn-group">
             <button onclick="createRoom()">Create Room</button>
             <button onclick="joinRoom()" class="btn-join">Join Room</button>
@@ -41,10 +36,9 @@
         <div id="gameArea" class="hidden">
             <div class="hud">
                 <div id="myScoreEl" class="score-badge active">You: 0</div>
-                <div class="target-score">TARGET: 8</div>
+                <div class="timer-box">⏱️ <span id="timer">00:00</span></div>
                 <div id="opScoreEl" class="score-badge">Opponent: 0</div>
             </div>
-            
             <div class="grid" id="grid"></div>
         </div>
 
@@ -56,7 +50,6 @@
         <div id="endScreen" class="overlay hidden">
             <h1 id="endTitle" class="result-title"></h1>
             <p id="endMessage" class="result-msg"></p>
-            
             <div id="hostControls" class="hidden controls-wrapper">
                 <button onclick="restartGame()" id="btnRematch">🔄 Rematch</button>
                 <button onclick="closeRoom()" class="secondary">❌ Close Room</button>
