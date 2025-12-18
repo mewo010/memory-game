@@ -18,7 +18,6 @@ let roomCode = "";
 let isHost = false;
 let dbRef = null;
 
-// Local Game State
 let localCards = []; 
 let localMatched = []; 
 let firstCard = null;
@@ -26,11 +25,10 @@ let isLocked = false;
 let myScore = 0;
 let lastCardsString = ""; 
 
-// Timer State
 let timerInterval = null;
 let seconds = 0;
 
-// --- AUDIO HELPER ---
+// --- AUDIO ---
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 function playSound(type) {
     const osc = audioCtx.createOscillator();
@@ -39,11 +37,11 @@ function playSound(type) {
     if (type === 'match') {
         osc.frequency.setValueAtTime(600, audioCtx.currentTime);
         osc.frequency.exponentialRampToValueAtTime(800, audioCtx.currentTime + 0.1);
-        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
         osc.start(); osc.stop(audioCtx.currentTime + 0.2);
     } else {
-        osc.frequency.setValueAtTime(200, audioCtx.currentTime);
-        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
         osc.start(); osc.stop(audioCtx.currentTime + 0.2);
     }
 }
@@ -51,26 +49,24 @@ function playSound(type) {
 // --- SESSION ---
 function saveSession() { sessionStorage.setItem("memGameSession", JSON.stringify({ user, roomCode, isHost })); }
 function getSession() { const data = sessionStorage.getItem("memGameSession"); return data ? JSON.parse(data) : null; }
-function clearSession() { sessionStorage.removeItem("memGameSession"); }
 
 window.onload = () => {
     const session = getSession();
-    if (session && session.user && session.roomCode) {
+    if (session) {
         user = session.user; roomCode = session.roomCode; isHost = session.isHost;
         enterGameScreen();
     }
 };
 
-// --- HELPERS ---
+// --- CORE ---
 function shuffle(array) { return array.sort(() => Math.random() - 0.5); }
 function getEl(id) { return document.getElementById(id); }
 
-// --- LOBBY ---
 function createRoom(){
     const name = getEl("playerName").value.trim();
     const room = getEl("roomName").value.trim();
     const pass = getEl("roomPass").value.trim();
-    if(!name || !room) return alert("Fill name and room");
+    if(!name || !room) return alert("Enter details");
 
     user = name; roomCode = room; isHost = true;
     saveSession();
@@ -86,9 +82,9 @@ function joinRoom(){
     const name = getEl("playerName").value.trim();
     const room = getEl("roomName").value.trim();
     const pass = getEl("roomPass").value.trim();
-    if(!name || !room) return alert("Fill name and room");
+    if(!name || !room) return alert("Enter details");
 
-    user = name; roomCode = room;
+    user = name; roomCode = room; isHost = false;
     db.ref("rooms/"+roomCode).once("value", s => {
         if(!s.exists()) return alert("No room");
         if(s.val().pass !== pass) return alert("Wrong pass");
@@ -107,9 +103,17 @@ function enterGameScreen() {
 
     dbRef.on("value", snapshot => {
         const data = snapshot.val();
-        if(!data) { location.reload(); return; }
+        if(!data) return location.reload();
 
-        // Sync Cards/Board
+        const players = data.players || {};
+        const pNames = Object.keys(players);
+
+        // FIX: Start game for BOTH if 2 players joined
+        if (isHost && data.state === "waiting" && pNames.length === 2) {
+            dbRef.update({ state: "playing" });
+        }
+
+        // Card Sync
         const currentCardsStr = JSON.stringify(data.cards);
         if (currentCardsStr !== lastCardsString) {
             lastCardsString = currentCardsStr;
@@ -118,7 +122,6 @@ function enterGameScreen() {
 
         // State Management
         if (data.state === "waiting") {
-            if (isHost && Object.keys(data.players || {}).length === 2) dbRef.update({ state: "playing" });
             getEl("lobby").classList.remove("hidden");
             getEl("gameArea").classList.add("hidden");
             getEl("endScreen").classList.add("hidden");
@@ -131,12 +134,13 @@ function enterGameScreen() {
             stopTimer();
             showEndScreen(data.winner);
         }
-        updateScoresUI(data.players || {});
+
+        // FIX: Dynamic Score & Names
+        updateScoresUI(players);
         renderChat(data.chat || {});
     });
 }
 
-// --- GAMEPLAY ---
 function setupLocalBoard(cardIcons) {
     localCards = cardIcons; localMatched = []; firstCard = null; isLocked = false; myScore = 0;
     const grid = getEl("grid"); grid.innerHTML = "";
@@ -176,9 +180,9 @@ function handleCardClick(cardDiv, icon, index) {
     }
 }
 
-// --- TIMER ---
 function startTimer() {
     seconds = 0;
+    clearInterval(timerInterval);
     timerInterval = setInterval(() => {
         seconds++;
         const m = Math.floor(seconds/60).toString().padStart(2,'0');
@@ -188,11 +192,13 @@ function startTimer() {
 }
 function stopTimer() { clearInterval(timerInterval); timerInterval = null; }
 
-// --- UI ---
 function updateScoresUI(players) {
     Object.entries(players).forEach(([pName, pData]) => {
-        if(pName === user) getEl("myScoreEl").innerText = `You: ${pData.score}`;
-        else getEl("opScoreEl").innerText = `${pName}: ${pData.score}`;
+        if(pName === user) {
+            getEl("myScoreEl").innerText = `You (${pName}): ${pData.score}`;
+        } else {
+            getEl("opScoreEl").innerText = `${pName}: ${pData.score}`;
+        }
     });
 }
 
@@ -200,7 +206,7 @@ function showEndScreen(winner) {
     getEl("endScreen").classList.remove("hidden");
     getEl("endTitle").innerText = winner === user ? "Victory! 🏆" : "Defeat 💀";
     getEl("endTitle").className = "result-title " + (winner === user ? "won" : "lost");
-    getEl("endMessage").innerText = winner === user ? "You were faster!" : winner + " won.";
+    getEl("endMessage").innerText = winner === user ? "You found all pairs!" : winner + " was faster.";
     if(isHost) getEl("hostControls").classList.remove("hidden");
     else getEl("waitControls").classList.remove("hidden");
 }
